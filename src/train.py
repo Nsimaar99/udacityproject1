@@ -108,7 +108,7 @@ if __name__ == "__main__":
     dataloaders = {'train': train_loader, 'valid': valid_loader, 'test': test_loader}
 
     # Step 2: Initialize the model (default to ResNet50 if no architecture is specified)
-    custom_resnet = CustomResNet50(num_classes=102, learning_rate=args.learning_rate)
+    custom_resnet = FlowerResNet50(num_classes=102, learning_rate=args.learning_rate)
     model = custom_resnet.get_model()
     criterion = custom_resnet.get_criterion()
     optimizer = custom_resnet.get_optimizer()
