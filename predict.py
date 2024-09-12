@@ -1,11 +1,12 @@
 import argparse
 import torch
+import torch.nn as nn
 from PIL import Image
 import json
+import numpy as np
 from torchvision import models, transforms
-from collections import OrderedDict
 
-# Define the ImagePredictor class as described earlier
+# Define the ImagePredictor class
 class ImagePredictor:
     def __init__(self, model, json_file_path='cat_to_name.json'):
         self.model = model
@@ -25,33 +26,21 @@ class ImagePredictor:
         return self.label_mapping.get(str(class_index), "Unknown class")
 
     def process_image(self, image):
-        size = 256
-        crop_size = 224
-        mean = [0.485, 0.456, 0.406]
-        std = [0.229, 0.224, 0.225]
-
-        image = image.resize((size, size))
-        left = (size - crop_size) / 2
-        top = (size - crop_size) / 2
-        right = (size + crop_size) / 2
-        bottom = (size + crop_size) / 2
-        image = image.crop((left, top, right, bottom))
-        image_array = np.array(image) / 255.0
-        image_array = (image_array - mean) / std
-        image_array = image_array.transpose((2, 0, 1))
-        return image_array
+        # Ensure the image is in RGB mode
+        image = image.convert('RGB')
+        image = self.preprocess(image)
+        return image
 
     def predict(self, image_path, topk=5):
         image = Image.open(image_path)
-        image_array = self.process_image(image)
-        image_tensor = torch.tensor(image_array).float().unsqueeze(0)
+        image_tensor = self.process_image(image).unsqueeze(0)  # Add batch dimension
         self.model.eval()
         with torch.no_grad():
             output = self.model(image_tensor)
             probabilities = torch.nn.functional.softmax(output, dim=1)
             top_probs, top_indices = torch.topk(probabilities, topk)
-            top_probs = top_probs.numpy().flatten()
-            top_indices = top_indices.numpy().flatten()
+            top_probs = top_probs.squeeze().cpu().numpy()
+            top_indices = top_indices.squeeze().cpu().numpy()
         return top_probs, top_indices
 
     def display_predictions(self, image_path, topk=5):
@@ -59,13 +48,21 @@ class ImagePredictor:
         print(f"Top {topk} Predictions:")
         for i in range(len(top_probs)):
             class_name = self.get_flower_name(top_indices[i])
-            print(f"Flower name: {class_name}, Probability: {top_probs[i]}")
+            print(f"Flower name: {class_name}, Probability: {top_probs[i]:.4f}")
 
-def load_model(checkpoint_path):
-    checkpoint = torch.load(checkpoint_path)
-    model = models.resnet50(pretrained=False)
-    model.fc = torch.nn.Linear(model.fc.in_features, len(checkpoint['class_to_idx']))
-    model.load_state_dict(checkpoint['state_dict'])
+def load_checkpoint(filepath):
+    checkpoint = torch.load(filepath, map_location='cpu')  # Load on CPU
+    
+    model = models.resnet50(weights=None)  # No pre-trained weights
+    num_classes = len(checkpoint['class_to_idx'])
+    model.fc = nn.Sequential(
+        nn.Linear(in_features=2048, out_features=512),
+        nn.ReLU(),
+        nn.Linear(in_features=512, out_features=num_classes)
+    )
+
+    model.load_state_dict(checkpoint['model_state_dict'])  # Use correct key for state dict
+
     return model
 
 def main():
@@ -78,7 +75,7 @@ def main():
     args = parser.parse_args()
 
     device = 'cuda' if args.gpu and torch.cuda.is_available() else 'cpu'
-    model = load_model(args.checkpoint)
+    model = load_checkpoint(args.checkpoint)
     model.to(device)
 
     image_predictor = ImagePredictor(model, args.category_names)
@@ -86,3 +83,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
