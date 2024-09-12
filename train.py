@@ -1,9 +1,10 @@
 import argparse
 import torch
 import os
-from data import setup_flower_data
-from dataset import FlowerDataset
-from model import FlowerResNet50
+from src.data import setup_flower_data
+from src.dataset import FlowerDataset
+from src.model import FlowerResNet50
+
 
 def get_input_args():
     """
