@@ -26,9 +26,10 @@ def load_checkpoint(filepath):
     return model, checkpoint['class_to_idx']
 
 class ImagePredictor:
-    def __init__(self, model, class_to_idx, json_file_path='cat_to_name.json'):
+    def __init__(self, model, class_to_idx, device, json_file_path='cat_to_name.json'):
         self.model = model
         self.class_to_idx = class_to_idx
+        self.device = device
         # Reverse the class_to_idx to get idx_to_class
         self.idx_to_class = {v: k for k, v in class_to_idx.items()}
         self.label_mapping = self.load_label_mapping(json_file_path)
@@ -53,7 +54,7 @@ class ImagePredictor:
     # Process the input image
     def process_image(self, image_path):
         image = Image.open(image_path)
-        return self.preprocess(image).unsqueeze(0)
+        return self.preprocess(image).unsqueeze(0).to(self.device)
 
     # Predict the class of the image
     def predict(self, image_path, topk=5):
@@ -102,7 +103,7 @@ def main():
     model.to(device)
 
     # Create ImagePredictor instance and display predictions
-    image_predictor = ImagePredictor(model, class_to_idx, args.category_names)
+    image_predictor = ImagePredictor(model, class_to_idx, device, args.category_names)
     image_predictor.display_predictions(args.image_path, topk=args.top_k)
 
 if __name__ == '__main__':
