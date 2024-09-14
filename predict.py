@@ -7,8 +7,8 @@ import json
 
 # Load the checkpoint and rebuild the model
 def load_checkpoint(filepath, arch):
-    # Load the checkpoint
-    checkpoint = torch.load(filepath, map_location='cpu')
+    # Load the checkpoint with weights_only=True for security
+    checkpoint = torch.load(filepath, map_location='cpu', weights_only=True)
 
     # Choose the model architecture and its corresponding output size
     if arch == 'resnet50':
@@ -50,8 +50,8 @@ class ImagePredictor:
     def __init__(self, model, class_to_idx, device, json_file_path='cat_to_name.json'):
         self.model = model
         self.class_to_idx = class_to_idx
-        # Reverse the class_to_idx to get idx_to_class
         self.idx_to_class = {v: k for k, v in class_to_idx.items()}
+        self.device = device  # Initialize the device attribute
         self.label_mapping = self.load_label_mapping(json_file_path)
         self.preprocess = transforms.Compose([
             transforms.Resize(256),
@@ -67,7 +67,6 @@ class ImagePredictor:
 
     # Get flower name from the class index
     def get_flower_name(self, class_index):
-        # Map class index to the original class
         original_class_index = self.idx_to_class.get(class_index, "Unknown")
         return self.label_mapping.get(str(original_class_index), "Unknown class")
 
@@ -85,7 +84,6 @@ class ImagePredictor:
             ps = torch.softmax(output, dim=1)
             top_p, top_indices = ps.topk(topk, dim=1)
 
-        # Convert indices to actual class labels
         top_p = top_p.squeeze().tolist()
         top_indices = top_indices.squeeze().tolist()
         
