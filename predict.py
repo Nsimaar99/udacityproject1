@@ -52,6 +52,7 @@ class ImagePredictor:
         self.class_to_idx = class_to_idx
         self.idx_to_class = {v: k for k, v in class_to_idx.items()}
         self.device = device  # Initialize the device attribute
+        self.model.to(self.device)  # Ensure the model is on the correct device
         self.label_mapping = self.load_label_mapping(json_file_path)
         self.preprocess = transforms.Compose([
             transforms.Resize(256),
@@ -59,6 +60,7 @@ class ImagePredictor:
             transforms.ToTensor(),
             transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         ])
+
 
     # Load the category names from a JSON file
     def load_label_mapping(self, json_file_path):
