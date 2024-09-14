@@ -6,19 +6,40 @@ from PIL import Image
 import json
 
 # Load the checkpoint and rebuild the model
-def load_checkpoint(filepath):
+def load_checkpoint(filepath, arch):
     # Load the checkpoint
     checkpoint = torch.load(filepath, map_location='cpu')
-    
-    # Load the ResNet50 model
-    model = models.resnet50(weights=None)
-    num_classes = len(checkpoint['class_to_idx'])
-    model.fc = nn.Sequential(
-        nn.Linear(2048, 512),
-        nn.ReLU(),
-        nn.Linear(512, num_classes)
-    )
-    
+
+    # Choose the model architecture and its corresponding output size
+    if arch == 'resnet50':
+        model = models.resnet50(weights=None)
+        num_features = 2048  # ResNet50 output from the final layer
+        model.fc = nn.Sequential(
+            nn.Linear(num_features, 512),
+            nn.ReLU(),
+            nn.Linear(512, len(checkpoint['class_to_idx']))
+        )
+    elif arch == 'densenet121':
+        model = models.densenet121(weights=None)
+        num_features = 1024  # DenseNet121 output from the final layer
+        model.classifier = nn.Sequential(
+            nn.Linear(num_features, 512),
+            nn.ReLU(),
+            nn.Linear(512, len(checkpoint['class_to_idx']))
+        )
+    elif arch == 'vgg16':
+        model = models.vgg16(weights=None)
+        num_features = 25088  # VGG16 output from the final layer
+        model.classifier = nn.Sequential(
+            nn.Linear(num_features, 4096),
+            nn.ReLU(),
+            nn.Linear(4096, 512),
+            nn.ReLU(),
+            nn.Linear(512, len(checkpoint['class_to_idx']))
+        )
+    else:
+        raise ValueError(f"Unsupported architecture: {arch}")
+
     # Load the state dict
     model.load_state_dict(checkpoint['model_state_dict'])
     
@@ -29,7 +50,6 @@ class ImagePredictor:
     def __init__(self, model, class_to_idx, device, json_file_path='cat_to_name.json'):
         self.model = model
         self.class_to_idx = class_to_idx
-        self.device = device
         # Reverse the class_to_idx to get idx_to_class
         self.idx_to_class = {v: k for k, v in class_to_idx.items()}
         self.label_mapping = self.load_label_mapping(json_file_path)
@@ -43,7 +63,7 @@ class ImagePredictor:
     # Load the category names from a JSON file
     def load_label_mapping(self, json_file_path):
         with open(json_file_path, 'r') as f:
-            return json.load(f)
+            return json.load(f, strict=False)
 
     # Get flower name from the class index
     def get_flower_name(self, class_index):
@@ -89,6 +109,7 @@ def parse_args():
     parser.add_argument('--top_k', type=int, default=5, help='Return top K most likely classes.')
     parser.add_argument('--category_names', type=str, default='cat_to_name.json', help='Path to the category names file.')
     parser.add_argument('--gpu', action='store_true', help='Use GPU for inference if available.')
+    parser.add_argument('--arch', type=str, default='resnet50', choices=['resnet50', 'densenet121', 'vgg16'], help='Choose the model architecture.')
     return parser.parse_args()
 
 # Main function
@@ -99,7 +120,7 @@ def main():
     device = torch.device("cuda" if args.gpu and torch.cuda.is_available() else "cpu")
 
     # Load the model from the checkpoint
-    model, class_to_idx = load_checkpoint(args.checkpoint)
+    model, class_to_idx = load_checkpoint(args.checkpoint, args.arch)
     model.to(device)
 
     # Create ImagePredictor instance and display predictions
